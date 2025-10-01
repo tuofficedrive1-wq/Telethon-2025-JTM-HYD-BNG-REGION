@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telethone 2025 JTM HYD & BNG REGION</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bowlby+One+SC&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9; /* Slate 100 */
+        }
+        /* Custom CSS for top 3 rows highlight animation */
+        .highlight-pulse {
+            animation: pulse-ring 0.6s cubic-bezier(0, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4);
+            }
+            100% {
+                transform: scale(1.02);
+                box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+            }
+        }
+
+        /* Custom CSS for Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6; /* Blue 500 */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Custom CSS for smooth transitions on rank items */
+        .rank-item {
+            /* Smooth transition for position changes */
+            transition: all 0.5s ease-in-out;
+            will-change: transform, box-shadow;
+        }
+        /* Hide loading when data is already present (removed from logic, but keeping style for other tabs) */
+        .loading-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.6);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <div id="root"></div>
+
+    <!-- React CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel Standalone to transpile JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        // --- Utility Functions for Formatting and Animation ---
+
+        // Formatter for Currency
+        const formatCurrency = (amount) => {
+            // Round to nearest integer for clean animation and display
+            return '₹ ' + new Intl.NumberFormat('en-IN').format(Math.round(amount));
+        };
+
+        // Formatter for Unit (Used for individual class units, and Overall Rank)
+        const formatUnit = (amount) => {
+             if (typeof amount !== 'number' || amount < 0) return "0.0";
+             const units = amount / 7000; // Apply the new logic
+             return units.toFixed(1); // Show exactly 1 decimal place
+        }
+
+        // Formatter for Overall Rank Units (Kept for clarity, but logic is same as formatUnit)
+        const formatOverallUnit = (amount) => {
+             if (typeof amount !== 'number' || amount < 0) return "0.0";
+             const units = amount / 7000;
+             return units.toFixed(1); // Show exactly 1 decimal place
+        }
+
+
+        // Component for smooth number animation (Kept for other total numbers if needed, but not used in Overall Rank now)
+        const AnimatedNumber = ({ value, duration = 1500, formatter }) => {
+            const [displayValue, setDisplayValue] = useState(value);
+            const previousValueRef = useRef(value);
+
+            useEffect(() => {
+                let startTimestamp;
+                const startValue = previousValueRef.current || 0;
+                const endValue = value || 0;
+                
+                // If value hasn't changed or component is new and value is 0, skip animation
+                if (endValue === startValue) {
+                    setDisplayValue(endValue);
+                    return;
+                }
+
+                const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const elapsed = timestamp - startTimestamp;
+                    const progress = Math.min(1, elapsed / duration);
+
+                    // Easing function (simple cubic ease-out)
+                    const easedProgress = 1 - Math.pow(1 - progress, 3); 
+
+                    const currentValue = startValue + (endValue - startValue) * easedProgress;
+                    setDisplayValue(currentValue);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        setDisplayValue(endValue); 
+                    }
+                };
+
+                const animationFrameId = requestAnimationFrame(step);
+
+                // Cleanup function
+                return () => {
+                    cancelAnimationFrame(animationFrameId);
+                    // Update previous value for the next render cycle
+                    previousValueRef.current = endValue; 
+                };
+            }, [value, duration]);
+
+            // Update ref for immediate re-render on value change if component re-mounts
+            useEffect(() => {
+                previousValueRef.current = value;
+            }, [value]);
+
+
+            return <span>{formatter(displayValue)}</span>;
+        };
+        
+        // --- Google Sheet Configuration and Logic (Original) ---
+        
+        const DEFAULT_SHEET_CONFIGS = {
+            "NAZEMIN": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "NAZEMIN" },
+            "NAIB NAZEMIN": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "NAIB NAZEMIN" },
+            "ASATIZAH": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "ASATIZAH" },
+            "ASRI TEACHER": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "ASRI TEACHER" },
+            "QARI SAHEBAAN": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "QARI SAHEBAAN" },
+            "DP": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "DP" },
+            "OTHER STAFF": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "OTHER STAFF" },
+            "JTM HYD & BNG REGION": { id: "1XTfvuoiW7ag3HKsocdvD1DXLxsXZQSIp", sheet: "JTM HYD & BNG REGION" },
+            // Overall Rank and Result tabs are special cases
+            "Overall Rank": { id: null, sheet: null },
+            "Result": { id: null, sheet: null }
+        };
+
+        const POLL_INTERVAL_MS = 5000;
+        const UNIT_DIVISOR = 7000; // Constant for unit calculation
+
+        // Utility function to extract the Google Sheet ID from various URLs or raw input
+        function parseSheetIdFromUrl(input) {
+            if (!input) return null;
+            input = input.trim();
+            const m = input.match(/\/d\/([a-zA-Z0-9-_]{10,})/);
+            if (m) return m[1];
+            const m2 = input.match(/\/spreadsheets\/d\/e?\/(?:pubhtml\/)?([a-zA-Z0-9-_]{10,})/);
+            if (m2) return m2[1];
+            if (/^[a-zA-Z0-9-_]{10,}$/.test(input)) return input;
+            return null;
+        }
+
+        // Utility function to validate the extracted Sheet ID
+        function isValidSheetId(id) {
+            return Boolean(id && /^[a-zA-Z0-9-_]{10,}$/.test(id));
+        }
+
+        // Constructs the Google Visualization API URL
+        function gvizUrl(sheetId, sheetName) {
+            return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+        }
+
+        // Fetches and parses data from the Google Sheet via GViz API
+        async function fetchSheetData(sheetId, sheetName) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const url = gvizUrl(sheetId, sheetName);
+                    const res = await fetch(url, { cache: "no-cache" });
+                    
+                    if (res.status === 429) { 
+                        if (attempt < 2) {
+                            const delay = Math.pow(2, attempt) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        throw new Error("Too many requests to Google Sheets API.");
+                    }
+
+                    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                    const text = await res.text();
+
+                    let jsonText = null;
+                    const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
+                    if (match && match[1]) jsonText = match[1];
+                    else {
+                        const first = text.indexOf('{');
+                        const last = text.lastIndexOf('}');
+                        if (first !== -1 && last !== -1 && last > first) jsonText = text.slice(first, last + 1);
+                    }
+
+                    if (!jsonText) throw new Error('Could not extract JSON from GViz response; sheet may not be published or allowed.');
+
+                    let data;
+                    try {
+                        data = JSON.parse(jsonText);
+                    } catch (err) {
+                        throw new Error('Failed to parse GViz JSON — ' + err.message);
+                    }
+
+                    const cols = (data.table.cols || []).map((c, i) => (c.label || c.id || `col${i}`).toString());
+                    const rows = (data.table.rows || []).map((r) => r.c.map((cell) => (cell ? (cell.f !== undefined ? cell.f : cell.v) : null)));
+                    const items = rows.map((r) => {
+                        const obj = {};
+                        cols.forEach((k, i) => (obj[k || `col${i}`] = r[i]));
+                        return obj;
+                    });
+                    return { cols, items };
+
+                } catch (error) {
+                    if (attempt === 2) throw error;
+                    if (error.message.includes("Too many requests")) throw error;
+                    const delay = Math.pow(2, attempt) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw new Error("Failed to fetch sheet data after multiple retries.");
+        }
+
+
+        // Candidate headers for automatic column mapping
+        const RANK_CANDIDATES = ["Rank", "S. R.", "S.R.", "S R", "Sr", "Serial", "S No", "S.No"];
+        const USTAZ_CANDIDATES = ["Name", "USTAZ NAME", "Ustaz", "Ustad", "Instructor", "Teacher", "Class"];
+        const JAMIA_CANDIDATES = ["Jamia Name", "JAMIA NAME", "Jamia", "Jamiah"];
+        const RAQAM_CANDIDATES = ["Raqam", "RAQAM", "Amount", "Value", "रकम", "राशि"];
+        const UNIT_CANDIDATES = ["Unit", "UNIT", "Units"]; // Original unit column is ignored now
+
+        // Finds the correct column header based on a list of candidates
+        function findColumnByCandidates(cols, candidates) {
+            const lower = cols.map((c) => (c || "").toLowerCase().trim());
+            for (let cand of candidates) {
+                const target = cand.toLowerCase().trim();
+                const idx = lower.findIndex((c) => c === target);
+                if (idx >= 0) return cols[idx];
+            }
+            for (let cand of candidates) {
+                const token = cand.toLowerCase().trim();
+                const idx = lower.findIndex((c) => c.includes(token));
+                if (idx >= 0) return cols[idx];
+            }
+            return null;
+        }
+
+        // Returns a medal emoji for the top 3 ranks
+        function medalForIndex(i) {
+            if (i === 0) return "🥇";
+            if (i === 1) return "🥈";
+            if (i === 2) return "🥉";
+            return "";
+        }
+        
+        // Countdown Logic
+        function calculateTimeRemaining(targetDate) {
+            const now = new Date();
+            const difference = targetDate - now;
+
+            if (difference <= 0) {
+                return { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
+            }
+
+            const seconds = Math.floor((difference / 1000) % 60);
+            const minutes = Math.floor((difference / 1000 / 60) % 60);
+            const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+            const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+
+            // BUG FIX: Set expired to false if time is remaining
+            return { days, hours, minutes, seconds, expired: false }; 
+        }
+        
+        // Function to safely parse a string to a number
+        function parseNumericValue(value, isInteger = false) {
+            if (value === null || value === undefined || String(value).trim() === "") {
+                return NaN;
+            }
+            const cleaned = String(value).replace(/[^0-9.-]+/g, "");
+            const n = Number(cleaned);
+            
+            if (Number.isNaN(n)) return NaN;
+            
+            return isInteger ? Math.round(n) : n;
+        }
+
+
+        function TelethoneEnhancedLive() {
+            const options = Object.keys(DEFAULT_SHEET_CONFIGS);
+            const [active, setActive] = useState("NAZEMIN"); // Changed default to a class
+
+            // Main dashboard data states
+            const [data, setData] = useState({ items: [] });
+            const [isLoading, setLoading] = useState(true); 
+            const [isDataLoaded, setIsDataLoaded] = useState(false);
+            const [error, setError] = useState(null);
+            const [highlightKey, setHighlightKey] = useState(null);
+            const pollRef = useRef(null);
+            
+            // Countdown state and result data
+            // Target Date has been set to the past for testing result view as per previous request/logic.
+            const targetDate = new Date('September 29, 2025 21:30:00 GMT+0530'); 
+            const [countdown, setCountdown] = useState(calculateTimeRemaining(targetDate));
+            const [resultData, setResultData] = useState({});
+            const [isResultLoading, setResultLoading] = useState(false);
+            const [resultError, setResultError] = useState(null);
+
+            // Overall Rank States
+            const [overallRankData, setOverallRankData] = useState([]);
+            // State for the big animated numbers (Kept, but not rendered)
+            const [overallTotalAmount, setOverallTotalAmount] = useState(0); 
+            const [overallTotalUnit, setOverallTotalUnit] = useState(0);
+            
+            const [isRankLoading, setRankLoading] = useState(true);
+            const [isRankDataLoaded, setIsRankDataLoaded] = useState(false);
+            const [rankError, setRankError] = useState(null);
+
+
+            // Gets the Sheet ID and sheet name for the active tab
+            function getActiveConfig() {
+                const cfg = DEFAULT_SHEET_CONFIGS[active] || { id: "", sheet: "Sheet1" };
+                return { id: cfg.id, sheet: cfg.sheet || "Sheet1" };
+            }
+
+            // Function to fetch and process data for the active sheet (Individual Class)
+            async function loadActiveSheet() {
+                const { id, sheet } = getActiveConfig();
+                
+                if (!isValidSheetId(id)) {
+                    setData({ items: [] });
+                    setError(null);
+                    setLoading(false);
+                    return;
+                }
+
+                if (!isDataLoaded) setLoading(true); 
+                setError(null);
+                try {
+                    const fetched = await fetchSheetData(id, sheet);
+                    const cols = fetched.cols;
+                    const rows = fetched.items;
+
+                    const rankCol = findColumnByCandidates(cols, RANK_CANDIDATES);
+                    const ustazCol = findColumnByCandidates(cols, USTAZ_CANDIDATES);
+                    const jamiaCol = findColumnByCandidates(cols, JAMIA_CANDIDATES);
+                    const raqamCol = findColumnByCandidates(cols, RAQAM_CANDIDATES);
+                    const unitCol = findColumnByCandidates(cols, UNIT_CANDIDATES); // This column is now ignored for calculation but kept for backward compatibility
+
+                    if (!jamiaCol || !raqamCol) {
+                        setError("Sheet mein kam-az-kam 'Jamia Name' aur 'Raqam' ke headers pehli row mein hone chahiye. Confirm karein ki header row maujood hai aur padhni ja sakti hai.");
+                        setData({ items: [] });
+                        setLoading(false);
+                        setIsDataLoaded(true);
+                        return;
+                    }
+
+                    const parsed = rows
+                        .map((r, idx) => {
+                            const rankRaw = rankCol ? r[rankCol] : null;
+                            const ustazRaw = ustazCol ? r[ustazCol] : null;
+                            const jamiaRaw = r[jamiaCol];
+                            const raqamRaw = r[raqamCol];
+                            // const unitRaw = unitCol ? r[unitCol] : null; // Original unit column is ignored now
+
+                            const rank = rankRaw === null || rankRaw === undefined ? "" : String(rankRaw).trim();
+                            const ustaz = ustazRaw === null || ustazRaw === undefined ? "" : String(ustazRaw).trim();
+                            const jamia = jamiaRaw === null || jamiaRaw === undefined ? "" : String(jamiaRaw).trim();
+                            
+                            const n = parseNumericValue(raqamRaw);
+                            
+                            // NEW LOGIC: Calculate unit based on raqam, ignore sheet unit column
+                            const calculatedUnit = formatUnit(n);
+
+
+                            return { 
+                                __id: idx, 
+                                rank, 
+                                ustaz, 
+                                jamia, 
+                                unit: calculatedUnit, // Use the new calculated and formatted unit
+                                raqamRaw, 
+                                __value: n // numeric value for sorting
+                            };
+                        })
+                        .filter((x) => x.jamia !== "" && !Number.isNaN(x.__value));
+
+                    parsed.sort((a, b) => b.__value - a.__value);
+                    
+                    const newTopId = parsed.length ? parsed[0].__id : null;
+                    if (newTopId !== null && newTopId !== highlightKey) {
+                        setHighlightKey(newTopId);
+                        setTimeout(() => setHighlightKey(null), 1200);
+                    }
+
+                    setData({ items: parsed });
+                    setLoading(false);
+                    setIsDataLoaded(true);
+                } catch (err) {
+                    console.error(err);
+                    setError(err.message || String(err));
+                    if (!isDataLoaded) setData({ items: [] }); 
+                    setLoading(false);
+                    setIsDataLoaded(true);
+                }
+            }
+
+            // Function to load all class totals for overall ranking
+            async function loadOverallRank() {
+                // Only show loading indicator on the first load for overall rank
+                if (!isRankDataLoaded) setRankLoading(true);
+                setRankError(null);
+                const sheetOptions = options.filter(key => key !== "Result" && key !== "Overall Rank");
+                
+                const fetchPromises = sheetOptions.map(async (opt) => {
+                    const cfg = DEFAULT_SHEET_CONFIGS[opt];
+                    const id = cfg.id ?? "";
+                    
+                    if (!isValidSheetId(id)) {
+                        // For overall rank calculation, if a sheet is not configured, its contribution is 0
+                        return { className: opt, totalAmount: 0, totalUnit: 0, error: "Not Configured" };
+                    }
+
+                    try {
+                        const fetched = await fetchSheetData(id, cfg.sheet);
+                        const cols = fetched.cols;
+                        const rows = fetched.items;
+
+                        const raqamCol = findColumnByCandidates(cols, RAQAM_CANDIDATES);
+
+                        if (!raqamCol) {
+                            return { className: opt, totalAmount: 0, totalUnit: 0, error: "Missing Raqam Column" };
+                        }
+                        
+                        let totalAmount = 0;
+
+                        rows.forEach((r) => {
+                            const raqamRaw = r[raqamCol];
+                            const n = parseNumericValue(raqamRaw);
+                            totalAmount += Number.isNaN(n) ? 0 : n;
+                        });
+                        
+                        // NEW LOGIC: Calculate unit based on amount (used for sorting only)
+                        const calculatedUnit = totalAmount / UNIT_DIVISOR;
+                        
+                        return { className: opt, totalAmount, totalUnit: calculatedUnit, error: null };
+                    } catch (err) {
+                        console.error(`Error fetching data for ${opt}:`, err);
+                        return { className: opt, totalAmount: 0, totalUnit: 0, error: err.message };
+                    }
+                });
+
+                try {
+                    const results = await Promise.all(fetchPromises);
+                    
+                    // Filter out rows where Total Amount is 0 AND Total Unit is 0 AND it's not a missing column error
+                    const validResults = results.filter(r => r.totalAmount > 0 || r.totalUnit > 0 || (r.error && r.error.includes("Missing Raqam Column")));
+                    
+                    // Calculate grand totals for the animated numbers (kept for logic, but not rendered)
+                    const grandTotalAmount = results.reduce((sum, r) => sum + r.totalAmount, 0);
+                    const grandTotalUnit = results.reduce((sum, r) => sum + r.totalUnit, 0); // This total unit is now the sum of calculated units
+
+                    setOverallTotalAmount(grandTotalAmount);
+                    setOverallTotalUnit(grandTotalUnit);
+                    
+                    // Sort for the rank list
+                    // Sort primarily by totalAmount, secondarily by calculated totalUnit
+                    validResults.sort((a, b) => {
+                        if (b.totalAmount !== a.totalAmount) {
+                            return b.totalAmount - a.totalAmount;
+                        }
+                        return b.totalUnit - a.totalUnit;
+                    });
+
+                    setOverallRankData(validResults);
+                    setRankLoading(false);
+                    setIsRankDataLoaded(true);
+
+                } catch (e) {
+                    setRankError("Sabhi rank data ko process nahi kiya ja saka.");
+                    setRankLoading(false);
+                    setIsRankDataLoaded(true);
+                }
+            }
+
+
+            // Function to load all class results for the "Result" tab 
+            async function loadAllResults() {
+                setResultLoading(true);
+                setResultError(null);
+                const allWinnersByClass = {};
+                const sheetOptions = options.filter(key => key !== "Result" && key !== "Overall Rank");
+
+                const fetchPromises = sheetOptions.map(async (opt) => {
+                    const cfg = DEFAULT_SHEET_CONFIGS[opt];
+                    const id = cfg.id ?? "";
+                    
+                    if (!isValidSheetId(id)) return { className: opt, winners: [], error: "Not Configured" };
+
+                    try {
+                        const fetched = await fetchSheetData(id, cfg.sheet);
+                        const cols = fetched.cols;
+                        const rows = fetched.items;
+
+                        const jamiaCol = findColumnByCandidates(cols, JAMIA_CANDIDATES);
+                        const ustazCol = findColumnByCandidates(cols, USTAZ_CANDIDATES);
+                        const raqamCol = findColumnByCandidates(cols, RAQAM_CANDIDATES);
+
+                        if (!jamiaCol || !raqamCol) return { className: opt, winners: [], error: "Missing Columns" };
+
+                        const parsed = rows
+                            .map((r, idx) => {
+                                const jamiaRaw = r[jamiaCol];
+                                const ustazRaw = ustazCol ? r[ustazCol] : null;
+                                const raqamRaw = r[raqamCol];
+
+                                const ustaz = ustazRaw === null || ustazRaw === undefined ? "" : String(ustazRaw).trim();
+                                const jamia = jamiaRaw === null || jamiaRaw === undefined ? "" : String(jamiaRaw).trim();
+                                const n = parseNumericValue(raqamRaw);
+
+                                return { __id: idx, ustaz, jamia, __value: n };
+                            })
+                            .filter((x) => x.jamia !== "" && !Number.isNaN(x.__value));
+
+                        parsed.sort((a, b) => b.__value - a.__value);
+                        
+                        return { className: opt, winners: parsed.slice(0, 3) };
+                    } catch (err) {
+                        console.error(`Error fetching results for ${opt}:`, err);
+                        return { className: opt, winners: [], error: err.message };
+                    }
+                });
+
+                try {
+                    const results = await Promise.all(fetchPromises);
+                    const winnersMap = {};
+                    results.forEach(r => {
+                        if (r.winners && r.winners.length > 0) {
+                             winnersMap[r.className] = r.winners;
+                        } else if (r.error && r.error.includes("Too many requests")) {
+                            setResultError(r.error);
+                        }
+                    });
+                    setResultData(winnersMap);
+
+                } catch (e) {
+                    setResultError("Sabhi results data ko process nahi kiya ja saka.");
+                } finally {
+                    setResultLoading(false);
+                }
+            }
+
+            // Main effect hook for polling and countdown updates
+            useEffect(() => {
+                if (active === "Result") {
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    
+                    // Only start loading results if the countdown has expired
+                    if (countdown.expired) {
+                        loadAllResults();
+                    }
+
+                    // Set up the 1-second interval for countdown update
+                    const timer = setInterval(() => {
+                        setCountdown(calculateTimeRemaining(targetDate));
+                    }, 1000);
+                    
+                    // Clean up the interval when the component unmounts or active changes
+                    return () => clearInterval(timer);
+                    
+                } else if (active === "Overall Rank") { 
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    loadOverallRank();
+                    // Poll silently in the background
+                    pollRef.current = setInterval(loadOverallRank, POLL_INTERVAL_MS);
+                    return () => clearInterval(pollRef.current);
+                } else {
+                    if (pollRef.current) clearInterval(pollRef.current);
+                    const { id } = getActiveConfig();
+                    if (isValidSheetId(id)) {
+                        loadActiveSheet();
+                        pollRef.current = setInterval(loadActiveSheet, POLL_INTERVAL_MS);
+                    } else {
+                        setData({ items: [] });
+                        setError(null);
+                        setLoading(false);
+                        setIsDataLoaded(true);
+                    }
+                    return () => clearInterval(pollRef.current);
+                }
+            }, [active, countdown.expired]); // Re-run effect if active changes or expired state changes
+
+            // Dynamic labels based on active tab
+            const ustazLabel = active === 'Takhassusat' ? 'Jamia Name' : 'Ustaz Name';
+            const jamiaLabel = active === 'Takhassusat' ? 'Class' : 'Jamia Name';
+
+            // Check if full screen loader should be active (only on first load)
+            // For Overall Rank, we only want the loader on initial load (!isRankDataLoaded)
+            const showFullScreenLoader = (active !== "Overall Rank" && isLoading && !isDataLoaded) || 
+                                         (active === "Overall Rank" && isRankLoading && !isRankDataLoaded);
+
+            return (
+                <div className="min-h-screen bg-slate-100">
+                    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+                        <header className="mb-6 text-center">
+                            <h1 className="text-5xl sm:text-7xl font-['Bebas_Neue'] tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-sky-500 to-indigo-600">
+                                Telethone 2025 JTM HYD & BNG REGION
+                            </h1>
+                            <p className="text-slate-500 mt-2 text-lg">Real-time fundraising leaderboard</p>
+                        </header>
+
+                        <nav className="flex flex-wrap justify-center gap-2 mb-6">
+                            {options.map((opt) => {
+                                const isActive = active === opt;
+                                const isSpecial = opt === "Overall Rank" || opt === "Result";
+                                return (
+                                    <button
+                                        key={opt}
+                                        onClick={() => setActive(opt)}
+                                        className={`px-4 py-2 text-sm sm:text-base font-semibold rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+                                            ${isActive
+                                                ? (isSpecial ? 'bg-amber-500 text-white shadow-lg ring-amber-500' : 'bg-indigo-600 text-white shadow-lg ring-indigo-500')
+                                                : 'bg-white text-slate-700 hover:bg-slate-200'
+                                            }`}
+                                    >
+                                        {opt}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        <main>
+                            {/* --- Error Display --- */}
+                            {error && (
+                                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-4" role="alert">
+                                    <p className="font-bold">Error</p>
+                                    <p>{error}</p>
+                                </div>
+                            )}
+
+                            {/* --- Content Area --- */}
+                            <div className="relative">
+                                {showFullScreenLoader && (
+                                    <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-xl z-10">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="loader !w-12 !h-12 !border-4"></div>
+                                            <p className="text-slate-600 font-semibold text-lg">Loading initial data...</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* --- Individual Class View --- */}
+                                {active !== "Result" && active !== "Overall Rank" && (
+                                    <>
+                                        {isLoading && !isDataLoaded ? null : (
+                                            <div className="space-y-3">
+                                                {data.items.map((item, i) => (
+                                                    <div
+                                                        key={item.__id}
+                                                        className={`rank-item flex flex-col sm:flex-row items-center justify-between p-4 bg-white rounded-xl shadow-md transition-all duration-300 border-l-4
+                                                            ${i === 0 ? 'border-amber-400' : i === 1 ? 'border-slate-400' : i === 2 ? 'border-orange-400' : 'border-transparent'}
+                                                            ${highlightKey === item.__id ? 'highlight-pulse' : ''}`
+                                                        }
+                                                    >
+                                                        <div className="flex items-center gap-4 w-full sm:w-2/3 mb-3 sm:mb-0">
+                                                            <div className={`text-2xl font-bold w-12 text-center ${i < 3 ? 'text-slate-700' : 'text-slate-400'}`}>{i + 1}</div>
+                                                            <div>
+                                                                <p className="font-bold text-lg text-slate-800">{item.jamia} <span className="text-xl">{medalForIndex(i)}</span></p>
+                                                                <p className="text-sm text-slate-500">{item.ustaz}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between items-center w-full sm:w-1/3 gap-4 text-right">
+                                                            <div className="text-lg font-semibold text-emerald-600 flex-1">
+                                                                {item.unit} <span className="text-sm text-slate-500">Units</span>
+                                                            </div>
+                                                            <div className="text-xl font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-md flex-1">
+                                                                {formatCurrency(item.__value)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* --- Overall Rank View --- */}
+                                {active === "Overall Rank" && !isRankLoading && (
+                                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
+                                        <h2 className="text-3xl font-bold text-center mb-6 text-slate-800">Overall Class Ranking</h2>
+                                        <div className="space-y-3">
+                                            {overallRankData.map((item, i) => (
+                                                 <div
+                                                    key={item.className}
+                                                    className={`rank-item flex flex-col sm:flex-row items-center justify-between p-4 bg-white rounded-xl shadow-sm transition-all duration-300 border-2
+                                                        ${i === 0 ? 'border-amber-400 bg-amber-50' : i === 1 ? 'border-slate-400 bg-slate-50' : i === 2 ? 'border-orange-400 bg-orange-50' : 'border-slate-200'}`
+                                                    }
+                                                >
+                                                    <div className="flex items-center gap-4 w-full sm:w-1/2 mb-3 sm:mb-0">
+                                                        <div className={`text-2xl font-bold w-12 text-center ${i < 3 ? 'text-slate-800' : 'text-slate-400'}`}>{i + 1}</div>
+                                                        <p className="font-bold text-lg text-slate-800">{item.className} <span className="text-xl">{medalForIndex(i)}</span></p>
+                                                    </div>
+                                                    <div className="flex justify-between items-center w-full sm:w-1/2 gap-4 text-right">
+                                                         <div className="text-lg font-semibold text-emerald-600 flex-1">
+                                                            {formatOverallUnit(item.totalAmount)} <span className="text-sm text-slate-500">Units</span>
+                                                        </div>
+                                                        <div className="text-xl font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-md flex-1">
+                                                            {formatCurrency(item.totalAmount)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* --- Result View --- */}
+                                {active === "Result" && (
+                                    <div className="bg-white p-6 rounded-xl shadow-md text-center">
+                                        {countdown.expired ? (
+                                            <div>
+                                                <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-teal-600 mb-2">Results are In!</h2>
+                                                <p className="text-slate-600 mb-8">Congratulations to all the winners!</p>
+                                                {isResultLoading ? (
+                                                     <div className="flex items-center justify-center gap-4 py-8">
+                                                        <div className="loader !w-8 !h-8 !border-4"></div>
+                                                        <p className="text-slate-600 font-semibold">Fetching final results...</p>
+                                                    </div>
+                                                ) : resultError ? (
+                                                    <div className="text-red-600">{resultError}</div>
+                                                ) : (
+                                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+                                                        {Object.keys(resultData).map(className => (
+                                                            <div key={className} className="bg-slate-50 border border-slate-200 p-4 rounded-lg">
+                                                                <h3 className="font-bold text-xl mb-3 text-indigo-700">{className}</h3>
+                                                                <ol className="list-none space-y-2">
+                                                                    {resultData[className].map((winner, idx) => (
+                                                                        <li key={idx} className="flex items-start gap-3">
+                                                                            <span className="text-lg">{medalForIndex(idx)}</span>
+                                                                            <div>
+                                                                                <p className="font-semibold text-slate-800">{winner.jamia}</p>
+                                                                                <p className="text-sm text-slate-500">{winner.ustaz}</p>
+                                                                            </div>
+                                                                        </li>
+                                                                    ))}
+                                                                </ol>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <h2 className="text-3xl font-bold text-slate-800 mb-4">Results will be announced soon!</h2>
+                                                <div className="flex justify-center gap-4 sm:gap-8 text-center">
+                                                    <div>
+                                                        <div className="text-4xl sm:text-6xl font-['Bowlby_One_SC'] text-indigo-600">{String(countdown.days).padStart(2, '0')}</div>
+                                                        <div className="text-xs sm:text-sm text-slate-500 uppercase tracking-widest">Days</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-4xl sm:text-6xl font-['Bowlby_One_SC'] text-indigo-600">{String(countdown.hours).padStart(2, '0')}</div>
+                                                        <div className="text-xs sm:text-sm text-slate-500 uppercase tracking-widest">Hours</div>
+                                                    </div>
+                                                     <div>
+                                                        <div className="text-4xl sm:text-6xl font-['Bowlby_One_SC'] text-indigo-600">{String(countdown.minutes).padStart(2, '0')}</div>
+                                                        <div className="text-xs sm:text-sm text-slate-500 uppercase tracking-widest">Minutes</div>
+                                                    </div>
+                                                     <div>
+                                                        <div className="text-4xl sm:text-6xl font-['Bowlby_One_SC'] text-indigo-600">{String(countdown.seconds).padStart(2, '0')}</div>
+                                                        <div className="text-xs sm:text-sm text-slate-500 uppercase tracking-widest">Seconds</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<TelethoneEnhancedLive />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+
+
+
